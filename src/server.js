@@ -9,10 +9,10 @@ import { connectMongoDB } from './db/connectMongoDB.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { logger } from './middleware/logger.js';
 import { notFoundHandler } from './middleware/notFoundHandler.js';
+
 import authRoutes from './routes/authRoutes.js';
 import notesRoutes from './routes/notesRoutes.js';
 import userRoutes from './routes/userRoutes.js';
-
 
 const app = express();
 
@@ -25,9 +25,13 @@ app.use(authRoutes);
 app.use(notesRoutes);
 app.use(userRoutes);
 
+// Обработка неизвестных маршрутов
+app.use(notFoundHandler);
+
+// Обработка ошибок валидации Celebrate
 app.use(errors());
 
-app.use(notFoundHandler);
+// Общий обработчик ошибок
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;

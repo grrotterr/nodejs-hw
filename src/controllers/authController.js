@@ -1,34 +1,21 @@
 import bcrypt from 'bcrypt';
 import createHttpError from 'http-errors';
 import jwt from 'jsonwebtoken';
-import handlebars from 'handlebars';
+import Handlebars from 'handlebars';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import User from '../models/user.js';
 import { Session } from '../models/session.js';
-import { createSession, setSessionCookies } from '../services/auth.js';
+import {
+  createSession,
+  setSessionCookies,
+} from '../services/auth.js';
 import { sendEmail } from '../utils/sendMail.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const resetPasswordTemplatePath = path.resolve(
-  __dirname,
-  '../templates/reset-password-email.html',
-);
-
-const getResetPasswordTemplate = async (data) => {
-  const templateSource = await fs.readFile(
-    resetPasswordTemplatePath,
-    'utf-8',
-  );
-
-  const template = handlebars.compile(templateSource);
-
-  return template(data);
-};
 
 export const registerUser = async (req, res) => {
   const { email, password } = req.body;
@@ -149,16 +136,26 @@ export const requestResetEmail = async (req, res) => {
     },
   );
 
-  const resetPasswordUrl =
+  const resetLink =
     `${process.env.FRONTEND_DOMAIN}/reset-password?token=${token}`;
 
-  const html = await getResetPasswordTemplate({
+  const templatePath = path.join(
+    __dirname,
+    '../templates/reset-password-email.html',
+  );
+
+  const templateSource = await fs.readFile(templatePath, 'utf8');
+  const template = Handlebars.compile(templateSource);
+
+  const html = template({
     username: user.username,
-    resetPasswordUrl,
+    resetLink,
+    link: resetLink,
   });
 
   try {
     await sendEmail({
+      from: process.env.SMTP_FROM,
       to: user.email,
       subject: 'Password reset',
       html,
@@ -170,7 +167,7 @@ export const requestResetEmail = async (req, res) => {
     );
   }
 
-  res.status(200).json({
+  return res.status(200).json({
     message: 'Password reset email sent successfully',
   });
 };
@@ -183,13 +180,6 @@ export const resetPassword = async (req, res) => {
   try {
     payload = jwt.verify(token, process.env.JWT_SECRET);
   } catch {
-    throw createHttpError(401, 'Invalid or expired token');
-  }
-
-  if (
-    !payload.sub ||
-    typeof payload.email !== 'string'
-  ) {
     throw createHttpError(401, 'Invalid or expired token');
   }
 
@@ -206,7 +196,7 @@ export const resetPassword = async (req, res) => {
 
   await user.save();
 
-  res.status(200).json({
+  return res.status(200).json({
     message: 'Password reset successfully',
   });
 };
